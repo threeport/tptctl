@@ -1,4 +1,4 @@
-name: threepctl Release
+name: tptctl Release
 
 on:
   push:
