@@ -3,17 +3,18 @@ tptctl
 Manage workloads on Threeport.
 
 ## Requirements
-* [gvm](https://github.com/moovweb/gvm) Go 1.19
-    ```bash
-    gvm install go1.19 --prefer-binary --with-build-tools --with-protobuf
-    gvm use go1.19 --default
-    ```
+
 * [curl](https://help.ubidots.com/en/articles/2165289-learn-how-to-install-run-curl-on-windows-macosx-linux)
 * [wget](https://www.gnu.org/software/wget/)
 * [jq](https://github.com/stedolan/jq/wiki/Installation)
+* [docker](https://docs.docker.com/engine/install/)
 * [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 * [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)
-* [homebrew](https://brew.sh/)
+* [homebrew](https://brew.sh/) - Optional
+* [gvm](https://github.com/moovweb/gvm) Go 1.19 - Optional
+    ```bash
+    gvm install go1.19 --prefer-binary --with-build-tools --with-protobuf
+    gvm use go1.19 --default
 
 ## Install
 
