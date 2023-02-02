@@ -2,7 +2,7 @@
 CURRENTTAG:=$(shell git describe --tags --abbrev=0)
 NEWTAG ?= $(shell bash -c 'read -p "Please provide a new tag (currnet tag - ${CURRENTTAG}): " newtag; echo $$newtag')
 GOFLAGS=-mod=mod
-GOPRIVATE=github.com/threeport/*,github.com/qleet/*
+GOPRIVATE=github.com/threeport/*
 
 #help: @ List available tasks
 help:
