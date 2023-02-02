@@ -27,7 +27,7 @@ VERSION=$(curl --silent "https://api.github.com/repos/threeport/tptctl/releases/
 ```
 or a specific version
 ```bash
-VERSION=v0.0.4
+VERSION=v0.0.5
 ```
 download and install prebuilt binaries
 ```bash
@@ -54,7 +54,7 @@ Set `VERSION` to
     ```
 * or a specific version
     ```bash
-    VERSION=v0.0.4
+    VERSION=v0.0.5
     ```
 download and install package
 ```bash
@@ -71,7 +71,7 @@ Set `VERSION` to
     ```
 * or a specific version
     ```bash
-    VERSION=v0.0.4
+    VERSION=v0.0.5
     ```
 download and install package
 ```bash
@@ -88,7 +88,7 @@ Set `VERSION` to
     ```
 * or a specific version
     ```bash
-    VERSION=v0.0.4
+    VERSION=v0.0.5
     ```
 download and install package
 ```bash

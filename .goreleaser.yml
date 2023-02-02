@@ -119,6 +119,7 @@ nfpms:
       - deb
       - rpm
     recommends:
+      - docker
       - kubectl
       - kind
       - wget
