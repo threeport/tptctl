@@ -5,6 +5,7 @@ package main
 
 import "github.com/threeport/tptctl/cmd"
 
+//go:generate bash -c "./get_version.sh"
 func main() {
 	cmd.Execute()
 }
