@@ -1,0 +1,37 @@
+name: tptctl CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    env:
+      GOPRIVATE: github.com/threeport/*
+      GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+    strategy:
+      matrix:
+        go-version: [1.19]    # https://go.dev/doc/devel/release
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v3.3.0
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v3.5.0
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Use GH_ACCESS_TOKEN to access private repos
+        run: git config --global url.https://$GH_ACCESS_TOKEN@github.com/.insteadOf https://github.com/
+
+      - name: Test
+        run: make test
+
+      - name: Build
+        run: make build

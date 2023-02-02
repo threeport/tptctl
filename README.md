@@ -23,11 +23,11 @@ Manage workloads on Threeport.
 Prebuilt binaries are available for a variety of operating systems and architectures.</br>
 Set `VERSION` environment variable to latest
 ```bash
-VERSION=$(curl -sL https://github.com/threeport/tptctl/releases/ | xmllint -html -xpath '//a[contains(@href, "releases")]/text()' - 2> /dev/null | grep -P '^v' | head -n1)
+VERSION=$(curl --silent "https://api.github.com/repos/threeport/tptctl/releases/latest" | jq '.tag_name' -r)
 ```
 or a specific version
 ```bash
-VERSION=v0.1.15
+VERSION=v0.0.2
 ```
 download and install prebuilt binaries
 ```bash
@@ -51,11 +51,11 @@ Derivatives of the Debian distribution of Linux include elementary OS, KDE neon,
 Set `VERSION` to 
 * latest
     ```bash
-    VERSION=$(curl -sL https://github.com/threeport/tptctl/releases/ | xmllint -html -xpath '//a[contains(@href, "releases")]/text()' - 2> /dev/null | grep -P '^v' | head -n1)
+    VERSION=$(curl --silent "https://api.github.com/repos/threeport/tptctl/releases/latest" | jq '.tag_name' -r)
     ```
 * or a specific version
     ```bash
-    VERSION=v0.1.15
+    VERSION=v0.0.2
     ```
 download and install package
 ```bash
@@ -68,11 +68,11 @@ Derivatives of the Fedora distribution of Linux include CentOS, Red Hat Enterpri
 Set `VERSION` to
 * latest
     ```bash
-    VERSION=$(curl -sL https://github.com/threeport/tptctl/releases/ | xmllint -html -xpath '//a[contains(@href, "releases")]/text()' - 2> /dev/null | grep -P '^v' | head -n1)
+    VERSION=$(curl --silent "https://api.github.com/repos/threeport/tptctl/releases/latest" | jq '.tag_name' -r)
     ```
 * or a specific version
     ```bash
-    VERSION=v0.1.15
+    VERSION=v0.0.2
     ```
 download and install package
 ```bash
@@ -85,11 +85,11 @@ rm -f "$TEMP_PACKAGE"
 Set `VERSION` to
 * latest
     ```bash
-    VERSION=$(curl -sL https://github.com/threeport/tptctl/releases/ | xmllint -html -xpath '//a[contains(@href, "releases")]/text()' - 2> /dev/null | grep -P '^v' | head -n1)
+    VERSION=$(curl --silent "https://api.github.com/repos/threeport/tptctl/releases/latest" | jq '.tag_name' -r)
     ```
 * or a specific version
     ```bash
-    VERSION=v0.1.15
+    VERSION=v0.0.2
     ```
 download and install package
 ```bash
