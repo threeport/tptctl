@@ -27,12 +27,11 @@ VERSION=$(curl --silent "https://api.github.com/repos/threeport/tptctl/releases/
 ```
 or a specific version
 ```bash
-VERSION=v0.0.2
+VERSION=v0.0.4
 ```
 download and install prebuilt binaries
 ```bash
-wget https://github.com/threeport/tptctl/releases/download/${VERSION}/tptctl_${VERSION}_$(echo $(uname))_$(uname -m).tar.gz -O - |\
-    tar -xz && sudo mv tptctl /usr/local/bin/tptctl
+wget https://github.com/threeport/tptctl/releases/download/${VERSION}/tptctl_${VERSION}_$(echo $(uname))_$(uname -m).tar.gz -O - | tar -xz && sudo mv tptctl /usr/local/bin/tptctl
 ```
 
 ### Package managers
@@ -55,11 +54,11 @@ Set `VERSION` to
     ```
 * or a specific version
     ```bash
-    VERSION=v0.0.2
+    VERSION=v0.0.4
     ```
 download and install package
 ```bash
-TEMP_PACKAGE="$(mktemp)" && wget -O "$TEMP_PACKAGE" "https://github.com/threeport/tptctl/releases/download/${VERSION}/tptctl_${VERSION}_$(uname -m | sed -E 's/^(aarch64|aarch64_be|armv6l|armv7l|armv8b|armv8l)$$/arm64/g' | sed -E 's/^x86_64$$/amd64/g').deb" && sudo apt -i "$TEMP_PACKAGE"
+TEMP_PACKAGE="$(mktemp)" && wget -O "$TEMP_PACKAGE" "https://github.com/threeport/tptctl/releases/download/${VERSION}/tptctl_${VERSION}_$(uname -m | sed -E 's/^(aarch64|aarch64_be|armv6l|armv7l|armv8b|armv8l)$$/arm64/g' | sed -E 's/^x86_64$$/amd64/g').deb" && sudo dpkg -i $TEMP_PACKAGE
 rm -f "$TEMP_PACKAGE"
 ```
 
@@ -72,11 +71,11 @@ Set `VERSION` to
     ```
 * or a specific version
     ```bash
-    VERSION=v0.0.2
+    VERSION=v0.0.4
     ```
 download and install package
 ```bash
-TEMP_PACKAGE="$(mktemp)" && wget -O "$TEMP_PACKAGE" "https://github.com/threeport/tptctl/releases/download/${VERSION}/tptctl_${VERSION}_$(uname -m | sed -E 's/^(aarch64|aarch64_be|armv6l|armv7l|armv8b|armv8l)$$/arm64/g' | sed -E 's/^x86_64$$/amd64/g').rpm" && sudo dnf -y "$TEMP_PACKAGE"
+TEMP_PACKAGE="$(mktemp)" && wget -O "$TEMP_PACKAGE" "https://github.com/threeport/tptctl/releases/download/${VERSION}/tptctl_${VERSION}_$(uname -m | sed -E 's/^(aarch64|aarch64_be|armv6l|armv7l|armv8b|armv8l)$$/arm64/g' | sed -E 's/^x86_64$$/amd64/g').rpm" && sudo dnf -y $TEMP_PACKAGE
 rm -f "$TEMP_PACKAGE"
 ```
 
@@ -89,11 +88,11 @@ Set `VERSION` to
     ```
 * or a specific version
     ```bash
-    VERSION=v0.0.2
+    VERSION=v0.0.4
     ```
 download and install package
 ```bash
-TEMP_PACKAGE="$(mktemp)" && wget -O "$TEMP_PACKAGE" "https://github.com/threeport/tptctl/releases/download/${VERSION}/tptctl_${VERSION}_$(uname -m | sed -E 's/^(aarch64|aarch64_be|armv6l|armv7l|armv8b|armv8l)$$/arm64/g' | sed -E 's/^x86_64$$/amd64/g').apk" && sudo apk add --allow-untrusted "$TEMP_PACKAGE"
+TEMP_PACKAGE="$(mktemp)" && wget -O "$TEMP_PACKAGE" "https://github.com/threeport/tptctl/releases/download/${VERSION}/tptctl_${VERSION}_$(uname -m | sed -E 's/^(aarch64|aarch64_be|armv6l|armv7l|armv8b|armv8l)$$/arm64/g' | sed -E 's/^x86_64$$/amd64/g').apk" && sudo apk add --allow-untrusted $TEMP_PACKAGE
 rm -f "$TEMP_PACKAGE"
 ```
 
