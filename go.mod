@@ -51,7 +51,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/datatypes v1.1.0 // indirect
 	gorm.io/driver/mysql v1.4.5 // indirect
-	gorm.io/gorm v1.24.4 // indirect
+	gorm.io/gorm v1.24.5 // indirect
 	k8s.io/apimachinery v0.26.1 // indirect
 	k8s.io/klog/v2 v2.90.0 // indirect
 	k8s.io/utils v0.0.0-20230202215443-34013725500c // indirect
