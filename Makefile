@@ -51,11 +51,6 @@ release: build
 	@git push
 	@echo "Done."
 
-#test-release-local: @ Build binaries locally without publishing
-test-release-local: clean
-	@goreleaser check
-	@goreleaser release --rm-dist --snapshot
-
 #version: @ Print current version(tag)
 version:
 	@echo $(shell git describe --tags --abbrev=0)

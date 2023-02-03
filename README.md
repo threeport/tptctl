@@ -130,7 +130,6 @@ test                - Run tests
 build               - Build tptctl binary
 install             - Install the tptctl CLI
 release             - Create and push a new tag
-test-release-local  - Build binaries locally without publishing
 version             - Print current version(tag)
 codegen-subcommand  - Build subcommand - a tool for generating subcommand source code
 ```
