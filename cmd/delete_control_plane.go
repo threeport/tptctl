@@ -49,9 +49,6 @@ var DeleteControlPlaneCmd = &cobra.Command{
 					"config for threeport instance with name %s not found", deleteThreeportInstanceName)))
 			os.Exit(1)
 		}
-		//fmt.Printf("%+v\n", instanceConfig)
-		//fmt.Println("all good")
-		//os.Exit(0)
 
 		// the control plane object provides the config for installing on the
 		// provider
@@ -74,28 +71,6 @@ var DeleteControlPlaneCmd = &cobra.Command{
 				errors.New(fmt.Sprintf("infra provider %s not supported", infraProvider)))
 			os.Exit(1)
 		}
-		///////////////////////////////////////////////////////////////////////
-
-		//// delete kind cluster
-		//fmt.Println("deleting kind cluster...")
-		//kindDelete := exec.Command(
-		//	"kind",
-		//	"delete",
-		//	"cluster",
-		//	"--name",
-		//	controlPlane.ThreeportClusterName(),
-		//)
-		//if err := kindDelete.Run(); err != nil {
-		//	qout.Error("failed to delete kind cluster", err)
-		//	os.Exit(1)
-		//}
-		//qout.Info("kind cluster deleted")
-
-		//// get threeport config
-		//threeportConfig := &config.ThreeportConfig{}
-		//if err := viper.Unmarshal(threeportConfig); err != nil {
-		//	qout.Error("failed to get Threeport config", err)
-		//}
 
 		// update threeport config to remove the deleted threeport instance and
 		// current instance

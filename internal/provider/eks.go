@@ -42,8 +42,6 @@ func (c *ControlPlane) CreateControlPlaneOnEKS(providerConfigDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal inventory to JSON: %w")
 	}
-	//inventoryFilePath := filepath.Join(providerConfigDir,
-	//	fmt.Sprintf("eks-inventory-%s.json", c.ThreeportClusterName()))
 	ioutil.WriteFile(c.inventoryFilePath(providerConfigDir), inventoryJSON, 0644)
 
 	// handle any resource creation error
@@ -56,8 +54,6 @@ func (c *ControlPlane) CreateControlPlaneOnEKS(providerConfigDir string) error {
 	}
 
 	// update kubeconfig
-	//kubeconfigFilePath := filepath.Join(providerConfigDir,
-	//	fmt.Sprintf("kubeconfig-%s", c.ThreeportClusterName()))
 	updateKubeconfig := exec.Command(
 		"aws",
 		"eks",
@@ -67,12 +63,17 @@ func (c *ControlPlane) CreateControlPlaneOnEKS(providerConfigDir string) error {
 		"--kubeconfig",
 		c.kubeconfigFilePath(providerConfigDir),
 	)
-	if err := updateKubeconfig.Run(); err != nil {
+	updateKubeconfigOut, err := updateKubeconfig.CombinedOutput()
+	if err != nil {
+		qout.Error(fmt.Sprintf("aws eks error: %s", updateKubeconfigOut), nil)
 		return fmt.Errorf("failed to update kubeconfig: %w", err)
-		//qout.Error("failed to create new kind cluster", err)
-		//os.Exit(1)
 	}
 	qout.Info("kubeconfig updated to include new EKS cluster")
+
+	// install support services operator
+	if err := install.InstallSupportServicesOperator(c.kubeconfigFilePath(providerConfigDir)); err != nil {
+		return fmt.Errorf("failed to install support services operator on EKS cluster: %w", err)
+	}
 
 	// install threeport API
 	if err := install.InstallAPI(c.kubeconfigFilePath(providerConfigDir)); err != nil {
@@ -88,13 +89,12 @@ func (c *ControlPlane) CreateControlPlaneOnEKS(providerConfigDir string) error {
 }
 
 func (c *ControlPlane) DeleteControlPlaneOnEKS(providerConfigDir string) error {
-	// load inventory
-	//inventoryFilePath := filepath.Join(providerConfigDir,
-	//	fmt.Sprintf("eks-inventory-%s.json", c.ThreeportClusterName()))
-	//inventoryFilePath, err := c.eksInventoryFile()
-	//if err != nil {
-	//	return fmt.Errorf("failed to build filepath to inventory file: %w", err)
-	//}
+	// delete ingress component to remove cloud load balancer
+	if err := install.UninstallIngressComponent(c.kubeconfigFilePath(providerConfigDir)); err != nil {
+		return fmt.Errorf("failed to uninstall support services ingress component on EKS cluster: %w", err)
+	}
+
+	// get resource inventory
 	var resourceInventory resource.ResourceInventory
 	inventoryJSON, err := ioutil.ReadFile(c.inventoryFilePath(providerConfigDir))
 	if err != nil {
@@ -121,51 +121,9 @@ func (c *ControlPlane) DeleteControlPlaneOnEKS(providerConfigDir string) error {
 	}
 
 	// remove kubeconfig
-	//kubeconfigFilePath := filepath.Join(providerConfigDir,
-	//	fmt.Sprintf("kubeconfig-%s", c.ThreeportClusterName()))
 	if err := os.Remove(c.kubeconfigFilePath(providerConfigDir)); err != nil {
 		fmt.Errorf("failed to remove kubeconfig file: %w", err)
 	}
-
-	// update kubeconfig
-
-	//// update kubeconfig to delete cluster, user, context
-	//deleteKubeconfigCluster := exec.Command(
-	//	"kubectl",
-	//	"config",
-	//	"delete-cluster",
-	//	resourceInventory.Cluster.ClusterARN,
-	//)
-	//if err := deleteKubeconfigCluster.Run(); err != nil {
-	//	return fmt.Errorf("failed to delete cluster from kubeconfig: %w", err)
-	//}
-	//deleteKubeconfigUser := exec.Command(
-	//	"kubectl",
-	//	"config",
-	//	"delete-user",
-	//	resourceInventory.Cluster.ClusterARN,
-	//)
-	//if err := deleteKubeconfigUser.Run(); err != nil {
-	//	return fmt.Errorf("failed to delete user from kubeconfig: %w", err)
-	//}
-	//unsetKubeconfigContext := exec.Command(
-	//	"kubectl",
-	//	"config",
-	//	"unset",
-	//	"current-context",
-	//)
-	//if err := unsetKubeconfigContext.Run(); err != nil {
-	//	return fmt.Errorf("failed to unset current context in kubeconfig: %w", err)
-	//}
-	//deleteKubeconfigContext := exec.Command(
-	//	"kubectl",
-	//	"config",
-	//	"delete-context",
-	//	resourceInventory.Cluster.ClusterARN,
-	//)
-	//if err := deleteKubeconfigContext.Run(); err != nil {
-	//	return fmt.Errorf("failed to delete context from kubeconfig: %w", err)
-	//}
 
 	return nil
 }
@@ -183,18 +141,6 @@ func (c *ControlPlane) kubeconfigFilePath(providerConfigDir string) string {
 		fmt.Sprintf("kubeconfig-%s", c.ThreeportClusterName()),
 	)
 }
-
-//func (c *ControlPlane) eksInventoryFile() (string, error) {
-//	homeDir, err := os.UserHomeDir()
-//	if err != nil {
-//		return "", fmt.Errorf("failed to get user's home directory: %w", err)
-//	}
-//	inventoryFilePath := filepath.Join(
-//		homeDir, ".config", "threeport",
-//		fmt.Sprintf("eks-inventory-%s.json", c.ThreeportClusterName()))
-//
-//	return inventoryFilePath, nil
-//}
 
 func outputMessages(msgChan *chan string) {
 	for {

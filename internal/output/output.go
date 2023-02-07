@@ -8,7 +8,11 @@ import (
 
 // Error returns a formatted error message in red.
 func Error(message string, err error) {
-	fmt.Println(Red(fmt.Sprintf("Error: %s\n%s", message, err)))
+	if err != nil {
+		fmt.Println(Red(fmt.Sprintf("Error: %s\n%s", message, err)))
+	} else {
+		fmt.Println(Red(fmt.Sprintf("Error: %s\n", message)))
+	}
 }
 
 // Info returns a formatted info message.

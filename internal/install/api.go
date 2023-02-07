@@ -28,8 +28,6 @@ func InstallAPI(kubeconfig string) error {
 	apiDepsManifest, err := os.Create(APIDepsManifestPath)
 	if err != nil {
 		return fmt.Errorf("failed to write API dependency manifests to disk: %w", err)
-		//qout.Error("failed to write API dependency manifests to disk", err)
-		//os.Exit(1)
 	}
 	defer apiDepsManifest.Close()
 	apiDepsManifest.WriteString(APIDepsManifest())
@@ -45,9 +43,12 @@ func InstallAPI(kubeconfig string) error {
 		"-f",
 		APIDepsManifestPath,
 	)
-	if err := apiDepsCreate.Run(); err != nil {
+	apiDepsCreateOut, err := apiDepsCreate.CombinedOutput()
+	if err != nil {
+		qout.Error(fmt.Sprintf("kubectl error: %s", apiDepsCreateOut), nil)
 		return fmt.Errorf("failed to install API dependencies: %w", err)
 	}
+
 	psqlConfigCreate := exec.Command(
 		"kubectl",
 		"--kubeconfig",
@@ -58,20 +59,18 @@ func InstallAPI(kubeconfig string) error {
 		"-n",
 		ThreeportControlPlaneNs,
 	)
-	if err := psqlConfigCreate.Run(); err != nil {
-		return fmt.Errorf("failed to create API database config: %w", err)
-		//qout.Error("failed to create API database config", err)
-		//os.Exit(1)
+	psqlConfigCreateOut, err := psqlConfigCreate.CombinedOutput()
+	if err != nil {
+		fmt.Println(psqlConfigCreateOut)
+		//qout.Error(fmt.Sprintf("kubectl error: %s", psqlConfigCreateOut), nil)
+		//return fmt.Errorf("failed to create API database config: %w", err)
 	}
-
 	qout.Info("Threeport API dependencies created")
 
 	// write API server manifest to /tmp directory
 	apiServerManifest, err := os.Create(APIServerManifestPath)
 	if err != nil {
 		return fmt.Errorf("failed to write API manifest to disk: %w", err)
-		//qout.Error("failed to write API manifest to disk", err)
-		//os.Exit(1)
 	}
 	defer apiServerManifest.Close()
 	apiServerManifest.WriteString(APIServerManifest())
@@ -87,10 +86,10 @@ func InstallAPI(kubeconfig string) error {
 		"-f",
 		APIServerManifestPath,
 	)
-	if err := apiServerCreate.Run(); err != nil {
+	apiServerCreateOut, err := apiServerCreate.CombinedOutput()
+	if err != nil {
+		qout.Error(fmt.Sprintf("kubectl error: %s", apiServerCreateOut), nil)
 		return fmt.Errorf("failed to create API server: %w", err)
-		//qout.Error("failed to create API server", err)
-		//os.Exit(1)
 	}
 
 	qout.Info("Threeport API server created")
@@ -618,5 +617,23 @@ spec:
     port: 80
     protocol: TCP
     targetPort: %[2]s
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: threeport-api-ingress
+  namespace: threeport-control-plane
+spec:
+  ingressClassName: kong
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: threeport-api-server
+            port:
+              number: 80
 `, ThreeportControlPlaneNs, ThreeportAPIPort, ThreeportRESTAPIImage)
 }

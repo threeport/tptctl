@@ -35,10 +35,10 @@ func InstallWorkloadController(kubeconfig string) error {
 		"-f",
 		WorkloadControllerManifestPath,
 	)
-	if err := workloadControllerCreate.Run(); err != nil {
+	workloadControllerCreateOut, err := workloadControllerCreate.CombinedOutput()
+	if err != nil {
+		qout.Error(fmt.Sprintf("kubectl error: %s", workloadControllerCreateOut), nil)
 		return fmt.Errorf("failed to create workload controller", err)
-		//qout.Error("failed to create workload controller", err)
-		//os.Exit(1)
 	}
 
 	qout.Info("Threeport workload controller created")
