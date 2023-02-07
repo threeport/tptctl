@@ -1,6 +1,12 @@
 package install
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+	"os/exec"
+
+	qout "github.com/threeport/tptctl/internal/output"
+)
 
 const (
 	ThreeportControlPlaneNs = "threeport-control-plane"
@@ -16,6 +22,81 @@ const (
 	NATSPromExporterImage   = "natsio/prometheus-nats-exporter:0.10.1"
 	ThreeportRESTAPIImage   = "ghcr.io/threeport/threeport-rest-api:v1.1.7"
 )
+
+func InstallAPI(kubeconfig string) error {
+	// write API dependencies manifest to /tmp directory
+	apiDepsManifest, err := os.Create(APIDepsManifestPath)
+	if err != nil {
+		return fmt.Errorf("failed to write API dependency manifests to disk: %w", err)
+		//qout.Error("failed to write API dependency manifests to disk", err)
+		//os.Exit(1)
+	}
+	defer apiDepsManifest.Close()
+	apiDepsManifest.WriteString(APIDepsManifest())
+	qout.Info("Threeport API dependencies manifest written to /tmp directory")
+
+	// install API dependencies
+	qout.Info("Installing Threeport API dependencies")
+	apiDepsCreate := exec.Command(
+		"kubectl",
+		"--kubeconfig",
+		kubeconfig,
+		"apply",
+		"-f",
+		APIDepsManifestPath,
+	)
+	if err := apiDepsCreate.Run(); err != nil {
+		return fmt.Errorf("failed to install API dependencies: %w", err)
+	}
+	psqlConfigCreate := exec.Command(
+		"kubectl",
+		"--kubeconfig",
+		kubeconfig,
+		"create",
+		"configmap",
+		"postgres-config-data",
+		"-n",
+		ThreeportControlPlaneNs,
+	)
+	if err := psqlConfigCreate.Run(); err != nil {
+		return fmt.Errorf("failed to create API database config: %w", err)
+		//qout.Error("failed to create API database config", err)
+		//os.Exit(1)
+	}
+
+	qout.Info("Threeport API dependencies created")
+
+	// write API server manifest to /tmp directory
+	apiServerManifest, err := os.Create(APIServerManifestPath)
+	if err != nil {
+		return fmt.Errorf("failed to write API manifest to disk: %w", err)
+		//qout.Error("failed to write API manifest to disk", err)
+		//os.Exit(1)
+	}
+	defer apiServerManifest.Close()
+	apiServerManifest.WriteString(APIServerManifest())
+	qout.Info("Threeport API server manifest written to /tmp directory")
+
+	// install Threeport API
+	qout.Info("installing Threeport API server")
+	apiServerCreate := exec.Command(
+		"kubectl",
+		"--kubeconfig",
+		kubeconfig,
+		"apply",
+		"-f",
+		APIServerManifestPath,
+	)
+	if err := apiServerCreate.Run(); err != nil {
+		return fmt.Errorf("failed to create API server: %w", err)
+		//qout.Error("failed to create API server", err)
+		//os.Exit(1)
+	}
+
+	qout.Info("Threeport API server created")
+
+	return nil
+}
 
 // GetThreeportAPIEndpoint returns the Threeport API endpoint
 func GetThreeportAPIEndpoint() string {

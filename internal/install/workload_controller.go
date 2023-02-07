@@ -1,11 +1,50 @@
 package install
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+	"os/exec"
+
+	qout "github.com/threeport/tptctl/internal/output"
+)
 
 const (
 	WorkloadControllerManifestPath = "/tmp/threeport-workload-controller.yaml"
 	WorkloadControllerImage        = "ghcr.io/threeport/threeport-workload-controller:v0.1.3"
 )
+
+func InstallWorkloadController(kubeconfig string) error {
+	// write workload controller manifest to /tmp directory
+	workloadControllerManifest, err := os.Create(WorkloadControllerManifestPath)
+	if err != nil {
+		return fmt.Errorf("failed to write workload controller manifest to disk", err)
+		//qout.Error("failed to write workload controller manifest to disk", err)
+		//os.Exit(1)
+	}
+	defer workloadControllerManifest.Close()
+	workloadControllerManifest.WriteString(WorkloadControllerManifest())
+	qout.Info("Threeport workload controller manifest written to /tmp directory")
+
+	// install workload controller
+	qout.Info("installing Threeport workload controller")
+	workloadControllerCreate := exec.Command(
+		"kubectl",
+		"--kubeconfig",
+		kubeconfig,
+		"apply",
+		"-f",
+		WorkloadControllerManifestPath,
+	)
+	if err := workloadControllerCreate.Run(); err != nil {
+		return fmt.Errorf("failed to create workload controller", err)
+		//qout.Error("failed to create workload controller", err)
+		//os.Exit(1)
+	}
+
+	qout.Info("Threeport workload controller created")
+
+	return nil
+}
 
 // WorkloadControllerManifest returns a yaml manifest for the workload controller
 // with the namespace included.
