@@ -1,0 +1,35 @@
+name: tptctl Release
+
+on:
+  push:
+    tags:
+      - '*'
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    env:
+      GOPRIVATE: github.com/threeport/*
+      GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v3.3.0
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v3.5.0
+      with:
+        go-version: 1.19
+
+    - name: Configure git to access private repos
+      run: git config --global url.https://$GH_ACCESS_TOKEN@github.com/.insteadOf https://github.com/
+
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v4.2.0
+      with:
+        version: latest
+        args: release --rm-dist -f  ./.goreleaser.yml
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

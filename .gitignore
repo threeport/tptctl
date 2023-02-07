@@ -1,1 +1,5 @@
 tptctl
+.idea/
+dist/
+completions/
+bin/

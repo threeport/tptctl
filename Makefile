@@ -2,7 +2,7 @@
 CURRENTTAG:=$(shell git describe --tags --abbrev=0)
 NEWTAG ?= $(shell bash -c 'read -p "Please provide a new tag (currnet tag - ${CURRENTTAG}): " newtag; echo $$newtag')
 GOFLAGS=-mod=mod
-GOPRIVATE=github.com/threeport/*,github.com/qleet/*
+GOPRIVATE=github.com/threeport/*
 
 #help: @ List available tasks
 help:
@@ -50,11 +50,6 @@ release: build
 	@git push origin ${NT}
 	@git push
 	@echo "Done."
-
-#test-release-local: @ Build binaries locally without publishing
-test-release-local: clean
-	@goreleaser check
-	@goreleaser release --rm-dist --snapshot
 
 #version: @ Print current version(tag)
 version:
