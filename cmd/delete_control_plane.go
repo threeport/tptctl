@@ -29,7 +29,7 @@ var DeleteControlPlaneCmd = &cobra.Command{
 		// get threeport config
 		threeportConfig := &config.ThreeportConfig{}
 		if err := viper.Unmarshal(threeportConfig); err != nil {
-			qout.Error("failed to get Threeport config", err)
+			qout.Error("Failed to get Threeport config", err)
 			os.Exit(1)
 		}
 
@@ -44,7 +44,7 @@ var DeleteControlPlaneCmd = &cobra.Command{
 			}
 		}
 		if !threeportInstanceConfigExists {
-			qout.Error("failed to find threeport instance config",
+			qout.Error("Failed to find threeport instance config",
 				errors.New(fmt.Sprintf(
 					"config for threeport instance with name %s not found", deleteThreeportInstanceName)))
 			os.Exit(1)
@@ -58,16 +58,16 @@ var DeleteControlPlaneCmd = &cobra.Command{
 		switch instanceConfig.Provider {
 		case "kind":
 			if err := controlPlane.DeleteControlPlaneOnKind(); err != nil {
-				qout.Error("failed to delete threeport control plane on kind", err)
+				qout.Error("Failed to delete threeport control plane on kind", err)
 				os.Exit(1)
 			}
 		case "eks":
 			if err := controlPlane.DeleteControlPlaneOnEKS(providerConfigDir); err != nil {
-				qout.Error("failed to delete threeport control plane on EKS", err)
+				qout.Error("Failed to delete threeport control plane on EKS", err)
 				os.Exit(1)
 			}
 		default:
-			qout.Error("unrecognized infra provider",
+			qout.Error("Unrecognized infra provider",
 				errors.New(fmt.Sprintf("infra provider %s not supported", infraProvider)))
 			os.Exit(1)
 		}
@@ -88,7 +88,7 @@ var DeleteControlPlaneCmd = &cobra.Command{
 		viper.WriteConfig()
 		qout.Info("Threeport config updated")
 
-		qout.Complete("Threeport instance deleted")
+		qout.Complete(fmt.Sprintf("Threeport instance %s deleted", deleteThreeportInstanceName))
 	},
 }
 

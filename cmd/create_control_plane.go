@@ -12,13 +12,15 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/threeport/tptctl/internal/config"
-	"github.com/threeport/tptctl/internal/install"
 	qout "github.com/threeport/tptctl/internal/output"
 	"github.com/threeport/tptctl/internal/provider"
 )
 
 var (
 	createThreeportInstanceName string
+	createRootDomain            string
+	createProviderAccountID     string
+	createAdminEmail            string
 	forceOverwriteConfig        bool
 	infraProvider               string
 )
@@ -34,7 +36,7 @@ var CreateControlPlaneCmd = &cobra.Command{
 		// get threeport config
 		threeportConfig := &config.ThreeportConfig{}
 		if err := viper.Unmarshal(threeportConfig); err != nil {
-			qout.Error("failed to get Threeport config", err)
+			qout.Error("Failed to get Threeport config", err)
 			os.Exit(1)
 		}
 
@@ -45,40 +47,55 @@ var CreateControlPlaneCmd = &cobra.Command{
 				threeportInstanceConfigExists = true
 				if !forceOverwriteConfig {
 					qout.Error(
-						"interupted creation of Threeport instance",
+						"Interupted creation of Threeport instance",
 						errors.New(fmt.Sprintf("instance of Threeport with name %s already exists", instance.Name)),
 					)
-					qout.Info("if you wish to overwrite the existing config use --force-overwrite-config flag")
-					qout.Warning("you will lose the ability to connect to the existing Threeport instance if it still exists")
+					qout.Info("If you wish to overwrite the existing config use --force-overwrite-config flag")
+					qout.Warning("You will lose the ability to connect to the existing Threeport instance if it still exists")
 					os.Exit(1)
 				}
 			}
 		}
 
 		// flag validation
-		if err := validateCreateControlPlaneFlags(infraProvider); err != nil {
-			qout.Error("flag validation failed", err)
+		if err := validateCreateControlPlaneFlags(
+			infraProvider,
+			createRootDomain,
+			createProviderAccountID,
+		); err != nil {
+			qout.Error("Flag validation failed", err)
 			os.Exit(1)
 		}
 
 		// the control plane object provides the config for installing on the
 		// provider
-		controlPlane := provider.ControlPlane{InstanceName: createThreeportInstanceName}
+		controlPlane := provider.NewControlPlane()
+		controlPlane.InstanceName = createThreeportInstanceName
+		if createRootDomain != "" {
+			controlPlane.RootDomainName = createRootDomain
+			controlPlane.ProviderAccountID = createProviderAccountID
+			controlPlane.AdminEmail = createAdminEmail
+		}
 
-		// determine infra provider
+		// determine infra provider and create control plane
+		var controlPlaneErr error
+		var threeportAPIEndpoint string
 		switch infraProvider {
 		case "kind":
 			if err := controlPlane.CreateControlPlaneOnKind(providerConfigDir); err != nil {
-				qout.Error("failed to install control plane on kind", err)
-				os.Exit(1)
+				controlPlaneErr = fmt.Errorf("failed to install control plane on kind: %w", err)
+				threeportAPIEndpoint = fmt.Sprintf("%s://%s:%s",
+					provider.KindThreeportAPIProtocol, provider.KindThreeportAPIHostname,
+					provider.KindThreeportAPIPort)
 			}
 		case "eks":
-			if err := controlPlane.CreateControlPlaneOnEKS(providerConfigDir); err != nil {
-				qout.Error("failed to install control plane on EKS", err)
-				os.Exit(1)
+			tpapiEndpoint, err := controlPlane.CreateControlPlaneOnEKS(providerConfigDir)
+			if err != nil {
+				controlPlaneErr = fmt.Errorf("failed to install control plane on EKS: %w", err)
 			}
+			threeportAPIEndpoint = tpapiEndpoint
 		default:
-			qout.Error("unrecognized infra provider",
+			qout.Error("Unrecognized infra provider",
 				errors.New(fmt.Sprintf("infra provider %s not supported", infraProvider)))
 			os.Exit(1)
 		}
@@ -87,7 +104,8 @@ var CreateControlPlaneCmd = &cobra.Command{
 		newThreeportInstance := &config.Instance{
 			Name:      createThreeportInstanceName,
 			Provider:  infraProvider,
-			APIServer: install.GetThreeportAPIEndpoint(),
+			APIServer: threeportAPIEndpoint,
+			//APIServer: install.GetThreeportAPIEndpoint(),
 		}
 
 		// update threeport config to add the new instance and set as current instance
@@ -105,7 +123,11 @@ var CreateControlPlaneCmd = &cobra.Command{
 		viper.WriteConfig()
 		qout.Info("Threeport config updated")
 
-		qout.Complete("Threeport instance created")
+		if controlPlaneErr != nil {
+			qout.Error("Problem encountered installing control plane", controlPlaneErr)
+		} else {
+			qout.Complete(fmt.Sprintf("Threeport instance %s created", createThreeportInstanceName))
+		}
 	},
 }
 
@@ -119,10 +141,19 @@ func init() {
 	CreateControlPlaneCmd.Flags().BoolVar(
 		&forceOverwriteConfig, "force-overwrite-config", false,
 		"force the overwrite of an existing Threeport instance config.  Warning: this will erase the connection info for the existing instance.  Only do this if the existing instance has already been deleted and is no longer in use.")
+	CreateControlPlaneCmd.Flags().StringVarP(&createRootDomain,
+		"root-domain", "d", "",
+		"the root domain name to use for the Threeport API. Requires a public hosted zone in AWS Route53. A subdomain for the Threeport API will be added to the root domain.")
+	CreateControlPlaneCmd.Flags().StringVarP(&createProviderAccountID,
+		"provider-account-id", "a", "",
+		"the provider account ID.  Required if providing a root domain for automated DNS management.")
+	CreateControlPlaneCmd.Flags().StringVarP(&createAdminEmail,
+		"admin-email", "e", "",
+		"email address of control plane admin.  Provided to TLS provider.")
 }
 
 // validateCreateControlPlaneFlags validates flag inputs as needed
-func validateCreateControlPlaneFlags(infraProvider string) error {
+func validateCreateControlPlaneFlags(infraProvider, createRootDomain, createProviderAccountID string) error {
 	allowedInfraProviders := []string{"kind", "eks"}
 	matched := false
 	for _, prov := range allowedInfraProviders {
@@ -134,6 +165,11 @@ func validateCreateControlPlaneFlags(infraProvider string) error {
 	if !matched {
 		return errors.New(fmt.Sprintf("invalid provider value '%s' - must be one of %s",
 			infraProvider, allowedInfraProviders))
+	}
+
+	if createRootDomain != "" && createProviderAccountID == "" {
+		return errors.New(
+			"if a root domain is provided for automated DNS management, your cloud provider account ID must also be provided. It is also recommended to provide an admin email, but not required.")
 	}
 
 	return nil

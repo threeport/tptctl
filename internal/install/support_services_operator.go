@@ -9,36 +9,48 @@ import (
 )
 
 const (
-	SupportServicesOperatorManifestPath   = "/tmp/support-services-operator.yaml"
-	SupportServicesCRDsManifestPath       = "/tmp/support-services-crds.yaml"
-	SupportServicesComponentsManifestPath = "/tmp/support-services-components.yaml"
-	SupportServicesOperatorImage          = "ghcr.io/nukleros/support-services-operator:v0.1.0"
-	SupportServicesIngressComponentName   = "threeport-control-plane-ingress"
+	SupportServicesOperatorManifestPath        = "/tmp/support-services-operator.yaml"
+	SupportServicesCRDsManifestPath            = "/tmp/support-services-crds.yaml"
+	SupportServicesComponentsManifestPath      = "/tmp/support-services-components.yaml"
+	SupportServicesOperatorImage               = "ghcr.io/nukleros/support-services-operator:v0.1.12"
+	SupportServicesIngressComponentName        = "threeport-control-plane-ingress"
+	SupportServicesIngressNamespace            = "threeport-ingress"
+	SupportServicesIngressServiceName          = "threeport-ingress-service"
+	SupportServicesDNSManagementServiceAccount = "external-dns"
 )
 
-func InstallSupportServicesOperator(kubeconfig string) error {
-
+// InstallSupportServicesOperator installs the support services operator into a
+// target control plane or compute space cluster.
+// https://github.com/nukleros/support-services-operator
+func InstallSupportServicesOperator(
+	kubeconfig string,
+	iamDNSRoleARN string,
+	rootDomain string,
+	adminEmail string,
+) (string, error) {
+	var loadBalancerURL string
 	// write support services operator manifests to /tmp directory
 	supportServicesCRDsManifest, err := os.Create(SupportServicesCRDsManifestPath)
 	if err != nil {
-		return fmt.Errorf("failed to write support services CRDs manifest to disk: %w", err)
+		return loadBalancerURL, fmt.Errorf("failed to write support services CRDs manifest to disk: %w", err)
 	}
 	defer supportServicesCRDsManifest.Close()
 	supportServicesCRDsManifest.WriteString(SupportServicesCRDsManifest())
 
 	supportServicesOperatorManifest, err := os.Create(SupportServicesOperatorManifestPath)
 	if err != nil {
-		return fmt.Errorf("failed to write support services operator manifest to disk: %w", err)
+		return loadBalancerURL, fmt.Errorf("failed to write support services operator manifest to disk: %w", err)
 	}
 	defer supportServicesOperatorManifest.Close()
 	supportServicesOperatorManifest.WriteString(SupportServicesOperatorManifest())
 
 	supportServicesComponentsManifest, err := os.Create(SupportServicesComponentsManifestPath)
 	if err != nil {
-		return fmt.Errorf("failed to write support services operator manifest to disk: %w", err)
+		return loadBalancerURL, fmt.Errorf("failed to write support services operator manifest to disk: %w", err)
 	}
 	defer supportServicesComponentsManifest.Close()
-	supportServicesComponentsManifest.WriteString(SupportServicesComponentsManifest())
+	supportServicesComponentsManifest.WriteString(
+		SupportServicesComponentsManifest(iamDNSRoleARN, rootDomain, adminEmail))
 	qout.Info("Threeport support services operator manifests written to /tmp directory")
 
 	// install support services CRDs
@@ -53,7 +65,7 @@ func InstallSupportServicesOperator(kubeconfig string) error {
 	supportServicesCRDsCreateOut, err := supportServicesCRDsCreate.CombinedOutput()
 	if err != nil {
 		qout.Error(fmt.Sprintf("kubectl error: %s", supportServicesCRDsCreateOut), nil)
-		return fmt.Errorf("failed to create support services custom resource definitions: %w", err)
+		return loadBalancerURL, fmt.Errorf("failed to create support services custom resource definitions: %w", err)
 	}
 
 	// install support services operator
@@ -68,7 +80,7 @@ func InstallSupportServicesOperator(kubeconfig string) error {
 	supportServicesOperatorCreateOut, err := supportServicesOperatorCreate.CombinedOutput()
 	if err != nil {
 		qout.Error(fmt.Sprintf("kubectl error: %s", supportServicesOperatorCreateOut), nil)
-		return fmt.Errorf("failed to create support services operator: %w", err)
+		return loadBalancerURL, fmt.Errorf("failed to create support services operator: %w", err)
 	}
 
 	// install support services components
@@ -83,16 +95,18 @@ func InstallSupportServicesOperator(kubeconfig string) error {
 	supportServicesComponentsCreateOut, err := supportServicesComponentsCreate.CombinedOutput()
 	if err != nil {
 		qout.Error(fmt.Sprintf("kubectl error: %s", supportServicesComponentsCreateOut), nil)
-		return fmt.Errorf("failed to create support services operator: %w", err)
+		return loadBalancerURL, fmt.Errorf("failed to create support services operator: %w", err)
 	}
 
 	qout.Info("Threeport support services operator created")
 
-	return nil
+	return loadBalancerURL, nil
 }
 
+// UninstallIngressComponent removes the support services ingress component.
+// This must be done before deleting cluster infra so the load balancer for the
+// ingress layer is deleted.
 func UninstallIngressComponent(kubeconfig string) error {
-	// delete support services ingress component
 	supportServicesIngressComponentDelete := exec.Command(
 		"kubectl",
 		"--kubeconfig",
@@ -1582,149 +1596,11 @@ func SupportServicesCRDsManifest() string {
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: supportservices.setup.addons.nukleros.io
-spec:
-  conversion:
-    strategy: None
-  group: setup.addons.nukleros.io
-  names:
-    kind: SupportServices
-    listKind: SupportServicesList
-    plural: supportservices
-    singular: supportservices
-  scope: Cluster
-  versions:
-  - name: v1alpha1
-    schema:
-      openAPIV3Schema:
-        description: SupportServices is the Schema for the supportservices API.
-        properties:
-          apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
-            type: string
-          kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
-            type: string
-          metadata:
-            type: object
-          spec:
-            description: SupportServicesSpec defines the desired state of SupportServices.
-            properties:
-              tier:
-                default: development
-                description: "(Default: \"development\") \n The tier of cluster being
-                  used.  One of: development | staging | production."
-                enum:
-                - development
-                - staging
-                - production
-                type: string
-            type: object
-          status:
-            description: SupportServicesStatus defines the observed state of SupportServices.
-            properties:
-              conditions:
-                items:
-                  description: PhaseCondition describes an event that has occurred
-                    during a phase of the controller reconciliation loop.
-                  properties:
-                    lastModified:
-                      description: LastModified defines the time in which this component
-                        was updated.
-                      type: string
-                    message:
-                      description: Message defines a helpful message from the phase.
-                      type: string
-                    phase:
-                      description: Phase defines the phase in which the condition
-                        was set.
-                      type: string
-                    state:
-                      description: PhaseState defines the current state of the phase.
-                      enum:
-                      - Complete
-                      - Reconciling
-                      - Failed
-                      - Pending
-                      type: string
-                  required:
-                  - lastModified
-                  - message
-                  - phase
-                  - state
-                  type: object
-                type: array
-              created:
-                type: boolean
-              dependenciesSatisfied:
-                type: boolean
-              resources:
-                items:
-                  description: ChildResource is the resource and its condition as
-                    stored on the workload custom resource's status field.
-                  properties:
-                    condition:
-                      description: ResourceCondition defines the current condition
-                        of this resource.
-                      properties:
-                        created:
-                          description: Created defines whether this object has been
-                            successfully created or not.
-                          type: boolean
-                        lastModified:
-                          description: LastModified defines the time in which this
-                            resource was updated.
-                          type: string
-                        message:
-                          description: Message defines a helpful message from the
-                            resource phase.
-                          type: string
-                      required:
-                      - created
-                      type: object
-                    group:
-                      description: Group defines the API Group of the resource.
-                      type: string
-                    kind:
-                      description: Kind defines the kind of the resource.
-                      type: string
-                    name:
-                      description: Name defines the name of the resource from the
-                        metadata.name field.
-                      type: string
-                    namespace:
-                      description: Namespace defines the namespace in which this resource
-                        exists in.
-                      type: string
-                    version:
-                      description: Version defines the API Version of the resource.
-                      type: string
-                  required:
-                  - group
-                  - kind
-                  - name
-                  - namespace
-                  - version
-                  type: object
-                type: array
-            type: object
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.0
+  creationTimestamp: null
   name: certificatescomponents.platform.addons.nukleros.io
 spec:
-  conversion:
-    strategy: None
   group: platform.addons.nukleros.io
   names:
     kind: CertificatesComponent
@@ -1769,6 +1645,10 @@ spec:
                           the cert-manager cainjector deployment."
                         type: integer
                     type: object
+                  contactEmail:
+                    description: Contact e-mail address for receiving updates about
+                      certificates from LetsEncrypt.
+                    type: string
                   controller:
                     properties:
                       image:
@@ -1924,10 +1804,11 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.0
+  creationTimestamp: null
   name: databasecomponents.application.addons.nukleros.io
 spec:
-  conversion:
-    strategy: None
   group: application.addons.nukleros.io
   names:
     kind: DatabaseComponent
@@ -2096,10 +1977,11 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.0
+  creationTimestamp: null
   name: ingresscomponents.platform.addons.nukleros.io
 spec:
-  conversion:
-    strategy: None
   group: platform.addons.nukleros.io
   names:
     kind: IngressComponent
@@ -2151,17 +2033,43 @@ spec:
                 type: string
               externalDNS:
                 properties:
+                  iamRoleArn:
+                    description: On AWS, the IAM Role ARN that gives external-dns
+                      access to Route53
+                    type: string
                   image:
                     default: k8s.gcr.io/external-dns/external-dns
                     description: "(Default: \"k8s.gcr.io/external-dns/external-dns\")
                       \n Image repo and name to use for external-dns."
                     type: string
                   provider:
+                    default: none
+                    description: "(Default: \"none\") \n The DNS provider to use for
+                      setting DNS records with external-dns.  One of: none | active-directory
+                      | google | route53."
+                    enum:
+                    - none
+                    - active-directory
+                    - google
+                    - route53
+                    type: string
+                  serviceAccountName:
+                    default: external-dns
+                    description: "(Default: \"external-dns\") \n The name of the external-dns
+                      service account which is referenced in role policy doc for AWS."
                     type: string
                   version:
                     default: v0.12.2
                     description: "(Default: \"v0.12.2\") \n Version of external-dns
                       to use."
+                    type: string
+                  zoneType:
+                    default: private
+                    description: "(Default: \"private\") \n Type of DNS hosted zone
+                      to manage."
+                    enum:
+                    - private
+                    - public
                     type: string
                 type: object
               kong:
@@ -2197,6 +2105,10 @@ spec:
                           controller to use."
                         type: string
                     type: object
+                  proxyServiceName:
+                    default: kong-proxy
+                    description: '(Default: "kong-proxy")'
+                    type: string
                   replicas:
                     default: 2
                     description: "(Default: 2) \n Number of replicas to use for the
@@ -2336,10 +2248,11 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.0
+  creationTimestamp: null
   name: secretscomponents.platform.addons.nukleros.io
 spec:
-  conversion:
-    strategy: None
   group: platform.addons.nukleros.io
   names:
     kind: SecretsComponent
@@ -2541,15 +2454,163 @@ spec:
     storage: true
     subresources:
       status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.9.0
+  creationTimestamp: null
+  name: supportservices.setup.addons.nukleros.io
+spec:
+  group: setup.addons.nukleros.io
+  names:
+    kind: SupportServices
+    listKind: SupportServicesList
+    plural: supportservices
+    singular: supportservices
+  scope: Cluster
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: SupportServices is the Schema for the supportservices API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: SupportServicesSpec defines the desired state of SupportServices.
+            properties:
+              defaultIngressController:
+                default: kong
+                description: "(Default: \"kong\") \n The default ingress for setting
+                  TLS certs.  One of: kong | nginx."
+                enum:
+                - kong
+                - nginx
+                type: string
+              tier:
+                default: development
+                description: "(Default: \"development\") \n The tier of cluster being
+                  used.  One of: development | staging | production."
+                enum:
+                - development
+                - staging
+                - production
+                type: string
+            type: object
+          status:
+            description: SupportServicesStatus defines the observed state of SupportServices.
+            properties:
+              conditions:
+                items:
+                  description: PhaseCondition describes an event that has occurred
+                    during a phase of the controller reconciliation loop.
+                  properties:
+                    lastModified:
+                      description: LastModified defines the time in which this component
+                        was updated.
+                      type: string
+                    message:
+                      description: Message defines a helpful message from the phase.
+                      type: string
+                    phase:
+                      description: Phase defines the phase in which the condition
+                        was set.
+                      type: string
+                    state:
+                      description: PhaseState defines the current state of the phase.
+                      enum:
+                      - Complete
+                      - Reconciling
+                      - Failed
+                      - Pending
+                      type: string
+                  required:
+                  - lastModified
+                  - message
+                  - phase
+                  - state
+                  type: object
+                type: array
+              created:
+                type: boolean
+              dependenciesSatisfied:
+                type: boolean
+              resources:
+                items:
+                  description: ChildResource is the resource and its condition as
+                    stored on the workload custom resource's status field.
+                  properties:
+                    condition:
+                      description: ResourceCondition defines the current condition
+                        of this resource.
+                      properties:
+                        created:
+                          description: Created defines whether this object has been
+                            successfully created or not.
+                          type: boolean
+                        lastModified:
+                          description: LastModified defines the time in which this
+                            resource was updated.
+                          type: string
+                        message:
+                          description: Message defines a helpful message from the
+                            resource phase.
+                          type: string
+                      required:
+                      - created
+                      type: object
+                    group:
+                      description: Group defines the API Group of the resource.
+                      type: string
+                    kind:
+                      description: Kind defines the kind of the resource.
+                      type: string
+                    name:
+                      description: Name defines the name of the resource from the
+                        metadata.name field.
+                      type: string
+                    namespace:
+                      description: Namespace defines the namespace in which this resource
+                        exists in.
+                      type: string
+                    version:
+                      description: Version defines the API Version of the resource.
+                      type: string
+                  required:
+                  - group
+                  - kind
+                  - name
+                  - namespace
+                  - version
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
 `)
 }
 
-func SupportServicesComponentsManifest() string {
+func SupportServicesComponentsManifest(iamDNSRoleARN, rootDomain, adminEmail string) string {
 	return fmt.Sprintf(`---
 apiVersion: setup.addons.nukleros.io/v1alpha1
 kind: SupportServices
 metadata:
-  name: threeport-cp-support-services
+  name: threeport-support-services
 spec:
   tier: "development"
 ---
@@ -2558,7 +2619,7 @@ kind: CertificatesComponent
 metadata:
   name: threeport-control-plane-certs
 spec:
-  namespace: "threeport-cp-certs"
+  namespace: "threeport-certs"
   certManager:
     cainjector:
       replicas: 1
@@ -2570,6 +2631,7 @@ spec:
     webhook:
       replicas: 1
       image: "quay.io/jetstack/cert-manager-webhook"
+    contactEmail: %[7]s
 ---
 apiVersion: platform.addons.nukleros.io/v1alpha1
 kind: IngressComponent
@@ -2582,12 +2644,15 @@ spec:
     image: "nginx/nginx-ingress"
     version: "2.3.0"
     replicas: 2
-  namespace: threeport-cp-ingress
+  namespace: %[2]s
   externalDNS:
-    provider: "none"
+    provider: route53
     image: "k8s.gcr.io/external-dns/external-dns"
     version: "v0.12.2"
-  domainName: "nukleros.io"
+    serviceAccountName: %[3]s
+    iamRoleArn: %[4]s
+    zoneType: public
+  domainName: %[5]s
   kong:
     include: true
     replicas: 1
@@ -2597,5 +2662,8 @@ spec:
     ingressController:
       image: "kong/kubernetes-ingress-controller"
       version: "2.5.0"
-`, SupportServicesIngressComponentName)
+    proxyServiceName: %[6]s
+`, SupportServicesIngressComponentName, SupportServicesIngressNamespace,
+		SupportServicesDNSManagementServiceAccount, iamDNSRoleARN, rootDomain,
+		SupportServicesIngressServiceName, adminEmail)
 }

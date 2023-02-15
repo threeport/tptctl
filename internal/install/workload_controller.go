@@ -13,6 +13,8 @@ const (
 	WorkloadControllerImage        = "ghcr.io/threeport/threeport-workload-controller:v0.1.3"
 )
 
+// InstallWorkloadController installs the threeport workload controller into the
+// control plane.
 func InstallWorkloadController(kubeconfig string) error {
 	// write workload controller manifest to /tmp directory
 	workloadControllerManifest, err := os.Create(WorkloadControllerManifestPath)

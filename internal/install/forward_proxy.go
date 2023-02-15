@@ -9,6 +9,7 @@ const (
 // ForwardProxyManifest returns a yaml manifest for the forward proxy operator
 // and a ForwardProxyServer manifest to spin up the envoy forward proxy
 // instance.
+// https://github.com/qleet/forward-proxy-operator
 func ForwardProxyManifest() string {
 	return fmt.Sprintf(`---
 apiVersion: v1

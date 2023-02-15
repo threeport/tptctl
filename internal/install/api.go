@@ -4,26 +4,28 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 
 	qout "github.com/threeport/tptctl/internal/output"
 )
 
 const (
-	ThreeportControlPlaneNs = "threeport-control-plane"
-	APIDepsManifestPath     = "/tmp/threeport-api-deps-manifest.yaml"
-	APIServerManifestPath   = "/tmp/threeport-api-server-manifest.yaml"
-	ThreeportAPIProtocol    = "http"
-	ThreeportAPIHostname    = "localhost"
-	ThreeportAPIPort        = "1323"
-	PostgresImage           = "postgres:15-alpine"
-	NATSBoxImage            = "natsio/nats-box:0.13.3"
-	NATSServerImage         = "nats:2.9-alpine"
-	NATSConfigReloaderImage = "natsio/nats-server-config-reloader:0.7.4"
-	NATSPromExporterImage   = "natsio/prometheus-nats-exporter:0.10.1"
-	ThreeportRESTAPIImage   = "ghcr.io/threeport/threeport-rest-api:v1.1.7"
+	ThreeportControlPlaneNs  = "threeport-control-plane"
+	ThreeportAPIInternalPort = "1323"
+	APIDepsManifestPath      = "/tmp/threeport-api-deps-manifest.yaml"
+	APIServerManifestPath    = "/tmp/threeport-api-server-manifest.yaml"
+	APIIngressManifestPath   = "/tmp/threeport-api-ingress-manifest.yaml"
+	APIIngressResourceName   = "threeport-api-ingress"
+	PostgresImage            = "postgres:15-alpine"
+	NATSBoxImage             = "natsio/nats-box:0.13.3"
+	NATSServerImage          = "nats:2.9-alpine"
+	NATSConfigReloaderImage  = "natsio/nats-server-config-reloader:0.7.4"
+	NATSPromExporterImage    = "natsio/prometheus-nats-exporter:0.10.1"
+	ThreeportRESTAPIImage    = "ghcr.io/threeport/threeport-rest-api:v1.1.7"
 )
 
-func InstallAPI(kubeconfig string) error {
+// InstallAPI installs the threeport API into a target Kubernetes cluster
+func InstallAPI(kubeconfig, threeportAPISubdomain, rootDomain, loadBalancerURL string) error {
 	// write API dependencies manifest to /tmp directory
 	apiDepsManifest, err := os.Create(APIDepsManifestPath)
 	if err != nil {
@@ -67,7 +69,7 @@ func InstallAPI(kubeconfig string) error {
 	}
 	qout.Info("Threeport API dependencies created")
 
-	// write API server manifest to /tmp directory
+	// write Threeport API server manifest to /tmp directory
 	apiServerManifest, err := os.Create(APIServerManifestPath)
 	if err != nil {
 		return fmt.Errorf("failed to write API manifest to disk: %w", err)
@@ -92,16 +94,88 @@ func InstallAPI(kubeconfig string) error {
 		return fmt.Errorf("failed to create API server: %w", err)
 	}
 
+	// write Threeport API ingress manifest to /tmp directory
+	apiIngressManifest, err := os.Create(APIIngressManifestPath)
+	if err != nil {
+		return fmt.Errorf("failed to write API ingress manifest to disk: %w", err)
+	}
+	defer apiIngressManifest.Close()
+	if rootDomain != "" {
+		apiIngressManifest.WriteString(APIIngressWithTLSManifest(threeportAPISubdomain, rootDomain))
+	} else {
+		apiIngressManifest.WriteString(APIIngressManifest(loadBalancerURL))
+	}
+	qout.Info("Threeport API ingress manifest written to /tmp directory")
+
+	// install Threeport API ingress resource
+	qout.Info("installing Threeport API ingress")
+	apiIngressCreate := exec.Command(
+		"kubectl",
+		"--kubeconfig",
+		kubeconfig,
+		"apply",
+		"-f",
+		APIIngressManifestPath,
+	)
+	apiIngressCreateOut, err := apiIngressCreate.CombinedOutput()
+	if err != nil {
+		qout.Error(fmt.Sprintf("kubectl error: %s", apiIngressCreateOut), nil)
+		return fmt.Errorf("failed to create API ingress: %w", err)
+	}
+
 	qout.Info("Threeport API server created")
 
 	return nil
 }
 
-// GetThreeportAPIEndpoint returns the Threeport API endpoint
+// UninstallAPIIngress deletes the ingress resource for the Threeport API.  This
+// must be done before deleting infra so the DNS records tied to the ingress are
+// removed.
+func UninstallAPIIngress(kubeconfig string) error {
+	apiIngressDelete := exec.Command(
+		"kubectl",
+		"--kubeconfig",
+		kubeconfig,
+		"delete",
+		"ingress",
+		"-n",
+		ThreeportControlPlaneNs,
+		APIIngressResourceName,
+	)
+	apiIngressDeleteOut, err := apiIngressDelete.CombinedOutput()
+	if err != nil {
+		qout.Error(fmt.Sprintf("kubectl error: %s", apiIngressDeleteOut), nil)
+		return fmt.Errorf("failed to delete Threeport API ingress resource: %w", err)
+	}
+
+	qout.Info("Threeport API ingress resource removed")
+	qout.Info("waiting for DNS recoreds to be deleted...")
+
+	time.Sleep(time.Second * 80)
+
+	return nil
+}
+
+// GetThreeportAPIEndpoint returns the threeport API endpoint
 func GetThreeportAPIEndpoint() string {
+	var apiProtocol string
+	var apiHostname string
+	var apiPort string
+
+	//switch infraProvider {
+	//case "kind":
+	//	apiProtocol = provider.KindThreeportAPIProtocol
+	//	apiHostname = provider.KindThreeportAPIHostname
+	//	apiPort = provider.KindThreeportAPIPort
+	//case "eks":
+	//	apiProtocol = "?"
+	//	apiHostname = "?"
+	//	apiPort = "?"
+	//}
+
 	return fmt.Sprintf(
 		"%s://%s:%s",
-		ThreeportAPIProtocol, ThreeportAPIHostname, ThreeportAPIPort,
+		apiProtocol, apiHostname, apiPort,
 	)
 }
 
@@ -617,16 +691,23 @@ spec:
     port: 80
     protocol: TCP
     targetPort: %[2]s
----
+`, ThreeportControlPlaneNs, ThreeportAPIInternalPort, ThreeportRESTAPIImage)
+}
+
+func APIIngressWithTLSManifest(threeportAPISubdomain, rootDomain string) string {
+	return fmt.Sprintf(`---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: threeport-api-ingress
+  name: %[1]s
   namespace: threeport-control-plane
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
 spec:
   ingressClassName: kong
   rules:
-  - http:
+  - host: %[2]s.%[3]s
+    http:
       paths:
       - path: /
         pathType: Prefix
@@ -635,5 +716,32 @@ spec:
             name: threeport-api-server
             port:
               number: 80
-`, ThreeportControlPlaneNs, ThreeportAPIPort, ThreeportRESTAPIImage)
+  tls:
+  - hosts:
+    - %[2]s.%[3]s
+    secretName: threeport-api-ingress-cert
+`, APIIngressResourceName, threeportAPISubdomain, rootDomain)
+}
+
+func APIIngressManifest(loadBalancerURL string) string {
+	return fmt.Sprintf(`---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: %[1]s
+  namespace: threeport-control-plane
+spec:
+  ingressClassName: kong
+  rules:
+  - host: %[2]s
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: threeport-api-server
+            port:
+              number: 80
+`, APIIngressResourceName, loadBalancerURL)
 }

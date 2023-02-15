@@ -20,9 +20,15 @@ import (
 )
 
 const (
-	ThreeportKindConfigPath = "/tmp/threeport-kind-config.yaml"
+	ThreeportKindConfigPath  = "/tmp/threeport-kind-config.yaml"
+	KindThreeportAPIProtocol = "http"
+	KindThreeportAPIHostname = "localhost"
+	KindThreeportAPIPort     = "1323"
 )
 
+// KindConfig returns the content of a kind config file used when installing
+// threeport locally.
+// https://kind.sigs.k8s.io/
 func (c *ControlPlane) KindConfig() string {
 	return fmt.Sprintf(`kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -34,9 +40,12 @@ nodes:
     - containerPort: %[2]s
       hostPort: %[2]s
       protocol: TCP
-`, c.ThreeportClusterName(), install.ThreeportAPIPort)
+`, c.ThreeportClusterName(), KindThreeportAPIPort)
 }
 
+// CreateControlPlaneOnKind creates a kind cluster and installs the threeport
+// control plane.
+// https://kind.sigs.k8s.io/
 func (c *ControlPlane) CreateControlPlaneOnKind(providerConfigDir string) error {
 	// write kind config file to /tmp directory
 	configFile, err := os.Create(ThreeportKindConfigPath)
@@ -82,7 +91,7 @@ func (c *ControlPlane) CreateControlPlaneOnKind(providerConfigDir string) error 
 	qout.Info(fmt.Sprintf("kubeconfig for kind cluster written to %s", kubeconfigFilePath))
 
 	// install threeport API
-	if err := install.InstallAPI(kubeconfigFilePath); err != nil {
+	if err := install.InstallAPI(kubeconfigFilePath, "", "", ""); err != nil {
 		return fmt.Errorf("failed to install threeport API on kind cluster: %w", err)
 	}
 
@@ -191,6 +200,8 @@ func (c *ControlPlane) CreateControlPlaneOnKind(providerConfigDir string) error 
 	return nil
 }
 
+// DeleteControlPlaneOnKind deletes a kind cluster used for a threeport instance
+// to completely remove threeport.
 func (c *ControlPlane) DeleteControlPlaneOnKind() error {
 	fmt.Println("deleting kind cluster...")
 	kindDelete := exec.Command(
